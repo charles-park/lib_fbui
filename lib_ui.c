@@ -420,6 +420,8 @@ void ui_update (fb_info_t *fb, ui_grp_t *ui_grp, int id)
 
    /* ui_grp에 등록되어있는 모든 item에 대하여 화면 업데이트 함 */
    if (id < 0) {
+      /* All item refresh */
+#if 0
       /* 초기화 값으로 전환 */
       for (i = 0; i < ui_grp->b_item_cnt; i++) {
          ui_grp->b_item[i].r.bc.uint = ui_grp->bc.uint;
@@ -430,6 +432,7 @@ void ui_update (fb_info_t *fb, ui_grp_t *ui_grp, int id)
          memset  (ui_grp->b_item[i].s.str, 0x00, ITEM_STR_MAX);
          strncpy (ui_grp->b_item[i].s.str, ui_grp->b_item[i].s_dfl, strlen (ui_grp->b_item[i].s_dfl));
       }
+#endif
       /* 모든 item에 대한 화면 업데이트 */
       for (i = 0; i < ITEM_COUNT_MAX; i++)
          _ui_update (fb, ui_grp, i);
