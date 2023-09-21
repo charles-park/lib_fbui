@@ -1,5 +1,5 @@
 #
-# lib_mac
+# lib_fbui
 #
 CC      = gcc
 CFLAGS  = -W -Wall -g
