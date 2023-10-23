@@ -5,9 +5,9 @@
  * @brief framebuffer library header file.
  * @version 0.1
  * @date 2022-05-10
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -64,14 +64,14 @@ typedef union fb_color__u {
 }	fb_color_u;
 
 typedef struct fb_info__t {
-	int			fd;
-	int			w;
-	int			h;
-	int			stride;
-	int			bpp;
-	char 		is_bgr;
-	char		*base;
-	char		*data;
+    int     fd;
+    int     w;
+    int     h;
+    int     stride;
+    int     bpp;
+    char    is_bgr;
+    char    *base;
+    char    *data;
 }	fb_info_t;
 
 //-----------------------------------------------------------------------------
@@ -90,17 +90,17 @@ enum eFONTS_HANGUL {
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-extern void         put_pixel 	(fb_info_t *fb, int x, int y, int color);
-extern void         draw_text 	(fb_info_t *fb, int x, int y,
-									int f_color, int b_color, int scale, char *fmt, ...);
-extern void         draw_line 	(fb_info_t *fb, int x, int y, int w, int color);
-extern void         draw_rect 	(fb_info_t *fb, int x, int y, int w, int h, int lw, int color);
+extern void         put_pixel   (fb_info_t *fb, int x, int y, int color);
+extern void         draw_text   (fb_info_t *fb, int x, int y,
+                                    int f_color, int b_color, int scale, char *fmt, ...);
+extern void         draw_line   (fb_info_t *fb, int x, int y, int w, int color);
+extern void         draw_rect   (fb_info_t *fb, int x, int y, int w, int h, int lw, int color);
 extern void         draw_fill_rect (fb_info_t *fb, int x, int y, int w, int h, int color);
-extern void         set_font	(enum eFONTS_HANGUL s_font);
-extern void         fb_clear 	(fb_info_t *fb);
-extern void         fb_close 	(fb_info_t *fb);
+extern void         set_font    (enum eFONTS_HANGUL s_font);
+extern void         fb_clear    (fb_info_t *fb);
+extern void         fb_close    (fb_info_t *fb);
 extern void         fb_cursor   (char status);
-extern fb_info_t    *fb_init 	(const char *DEVICE_NAME);
+extern fb_info_t    *fb_init    (const char *DEVICE_NAME);
 
 //------------------------------------------------------------------------------------------------
 //------------------------------------------------------------------------------------------------

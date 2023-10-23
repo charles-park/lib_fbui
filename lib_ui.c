@@ -5,9 +5,9 @@
  * @brief User interface library (include parser)
  * @version 0.1
  * @date 2022-09-30
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
@@ -175,12 +175,15 @@ static void _ui_parser_cmd_B (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
 
    r->x = (r->x * fb->w / 100);  r->y = (r->y * fb->h / 100);
    r->w = (r->w * fb->w / 100);  r->h = (r->h * fb->h / 100);
-   
+
    r->bc.uint = ui_grp->bc.uint;
    r->lc.uint = ui_grp->lc.uint;
 
    ptr = strtok (NULL, ",");     s->scale = atoi(ptr);
    ptr = strtok (NULL, ",");     ui_grp->b_item[item_cnt].s_align = atoi(ptr);
+
+   ptr = strtok (NULL, ",");
+   ui_grp->b_item[item_cnt].gid = atoi(ptr);
 
    /* 문자열이 없거나 앞부분의 공백이 있는 경우 제거 */
    if ((ptr = strtok (NULL, ",")) != NULL) {
@@ -194,9 +197,6 @@ static void _ui_parser_cmd_B (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
       // default string for ui_reset
       strncpy(ui_grp->b_item[item_cnt].s_dfl, ptr, s->len);
    }
-
-   ptr = strtok (NULL, ",");
-   ui_grp->b_item[item_cnt].gid = atoi(ptr);
 
    s->f_type  = ui_grp->f_type;   s->fc.uint = ui_grp->fc.uint;
    s->bc.uint = ui_grp->bc.uint;
@@ -220,27 +220,13 @@ static void _ui_parser_cmd_I (char *buf, ui_grp_t *ui_grp)
    char *ptr = strtok (buf, ",");
 
    if ((ptr = strtok (NULL, ",")) != NULL)
-      ui_grp->i_item[item_cnt].uid = atoi(ptr);
+      ui_grp->i_item[item_cnt].ui_id = atoi(ptr);
 
-   /* 문자열이 없거나 앞부분의 공백이 있는 경우 제거 */
-   if ((ptr = strtok (NULL, ",")) != NULL) {
-      int slen = strlen(ptr);
+   if ((ptr = strtok (NULL, ",")) != NULL)
+      ui_grp->i_item[item_cnt].grp_id = atoi(ptr);
 
-      while ((*ptr == 0x20) && slen--)
-         ptr++;
-
-      strncpy(ui_grp->i_item[item_cnt].group, ptr, slen);
-   }
-   
-   /* 문자열이 없거나 앞부분의 공백이 있는 경우 제거 */
-   if ((ptr = strtok (NULL, ",")) != NULL) {
-      int slen = strlen(ptr);
-
-      while ((*ptr == 0x20) && slen--)
-         ptr++;
-
-      strncpy(ui_grp->i_item[item_cnt].item, ptr, slen);
-   }
+   if ((ptr = strtok (NULL, ",")) != NULL)
+      ui_grp->i_item[item_cnt].dev_id = atoi(ptr);
 
    ui_grp->i_item[item_cnt].is_info = 1;
    if ((ptr = strtok (NULL, ",")) != NULL)
@@ -279,7 +265,7 @@ void ui_set_ritem (fb_info_t *fb, ui_grp_t *ui_grp, int f_id, int bc, int lc)
    b_item_t *pitem = _ui_find_item(ui_grp, f_id);
 
    if ((f_id < ITEM_COUNT_MAX) && (pitem != NULL)) {
-      if (bc != -1)  pitem->r.bc.uint = bc;   
+      if (bc != -1)  pitem->r.bc.uint = bc;
       if (lc != -1)  pitem->r.lc.uint = lc;
       ui_set_sitem (fb, ui_grp, f_id, -1, bc, NULL);
       ui_update (fb, ui_grp, f_id);
@@ -380,7 +366,7 @@ void ui_set_str (fb_info_t *fb, ui_grp_t *ui_grp,
 //------------------------------------------------------------------------------
 static void _ui_update (fb_info_t *fb, ui_grp_t *ui_grp, int id)
 {
-   b_item_t *pitem = _ui_find_item(ui_grp, id); 
+   b_item_t *pitem = _ui_find_item(ui_grp, id);
 
    if ((id < ITEM_COUNT_MAX) && (pitem != NULL)) {
       pitem->s.f_type = ui_grp->f_type;
