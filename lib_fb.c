@@ -5,9 +5,9 @@
  * @brief Framebuffer control library
  * @version 0.1
  * @date 2022-05-10
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 //-----------------------------------------------------------------------------
 #include <stdio.h>
@@ -131,12 +131,22 @@ static unsigned char *get_hangul_image( unsigned char HAN1,
 }
 
 //-----------------------------------------------------------------------------
+#if defined(__USE_TFT_LCD__)
+    #define TFT_LCD_X   800
+    #define TFT_LCD_Y   1280
+#endif
 void put_pixel (fb_info_t *fb, int x, int y, int color)
 {
     fb_color_u c;
     int offset = (y * fb->stride) + (x * (fb->bpp >> 3));
 
     if ((x < fb->w) && (y < fb->h)) {
+#if defined(__USE_TFT_LCD__)
+        int swap = y;
+        y = x;
+        x = TFT_LCD_X - swap -1;
+        offset = (y * fb->stride) + (x * (fb->bpp >> 3));
+#endif
         c.uint = color;
         if (fb->is_bgr) {
             *(fb->data + offset) = c.bits.b;  offset++;
@@ -150,7 +160,7 @@ void put_pixel (fb_info_t *fb, int x, int y, int color)
         if (fb->bpp == 32)
             *(fb->data + offset) = 0xFF;
     } else {
-        fprintf(stdout, "Out of range.(width = %d, x = %d, height = %d, y = %d)\n", 
+        fprintf(stdout, "Out of range.(width = %d, x = %d, height = %d, y = %d)\n",
             fb->w, x, fb->h, y);
     }
 }
@@ -213,7 +223,7 @@ static void _draw_text (fb_info_t *fb, int x, int y, char *p_str,
     unsigned char *p_img;
     unsigned char c1, c2, c3;
 
-    while(*p_str) { 
+    while(*p_str) {
         c1 = *(unsigned char *)p_str++;
 
         //---------- 한글 ---------
@@ -233,7 +243,7 @@ static void _draw_text (fb_info_t *fb, int x, int y, char *p_str,
             draw_ascii_bitmap(fb, x, y, p_img, f_color, b_color, scale);
             x = x + FONT_ASCII_WIDTH * scale;
         }
-    }  
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -264,9 +274,9 @@ void draw_line (fb_info_t *fb, int x, int y, int w, int color)
 //-----------------------------------------------------------------------------
 void draw_rect (fb_info_t *fb, int x, int y, int w, int h, int lw, int color)
 {
-	int dy, i;
+    int dy, i;
 
-	for (dy = 0; dy < h; dy++) {
+    for (dy = 0; dy < h; dy++) {
         if (dy < lw || (dy > (h - lw -1)))
             draw_line (fb, x, y + dy, w, color);
         else {
@@ -275,15 +285,15 @@ void draw_rect (fb_info_t *fb, int x, int y, int w, int h, int lw, int color)
                 put_pixel (fb, x + w -1 -i, y + dy, color);
             }
         }
-	}
+    }
 }
 
 //-----------------------------------------------------------------------------
 void draw_fill_rect (fb_info_t *fb, int x, int y, int w, int h, int color)
 {
-	int dy;
+    int dy;
 
-	for (dy = 0; dy < h; dy++)
+    for (dy = 0; dy < h; dy++)
         draw_line(fb, x, y + dy, w, color);
 }
 
@@ -353,50 +363,55 @@ void fb_cursor (char status)
 //-----------------------------------------------------------------------------
 fb_info_t *fb_init (const char *DEVICE_NAME)
 {
-	struct fb_var_screeninfo fvsi;
-	struct fb_fix_screeninfo ffsi;
-    
+    struct fb_var_screeninfo fvsi;
+    struct fb_fix_screeninfo ffsi;
+
     fb_info_t   *fb = (fb_info_t *)malloc(sizeof(fb_info_t));
 
     if (fb == NULL) {
         fprintf(stdout, "ERROR: framebuffer malloc error!\n");
         return NULL;
     }
-	memset(fb, 0, sizeof(fb_info_t));
+    memset(fb, 0, sizeof(fb_info_t));
 
-	if ((fb->fd = open(DEVICE_NAME, O_RDWR)) < 0) {
-		fprintf(stdout, "ERROR: open");
+    if ((fb->fd = open(DEVICE_NAME, O_RDWR)) < 0) {
+        fprintf(stdout, "ERROR: open");
         return NULL;
-	}
-	if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fvsi) < 0) {
-		fprintf(stdout, "ERROR: ioctl(FBIOGET_VSCREENINFO)");
+    }
+    if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fvsi) < 0) {
+        fprintf(stdout, "ERROR: ioctl(FBIOGET_VSCREENINFO)");
         goto out;
-	}
-	if (ioctl(fb->fd, FBIOGET_FSCREENINFO, &ffsi) < 0) {
-		fprintf(stdout, "ERROR: ioctl(FBIOGET_FSCREENINFO)");
+    }
+    if (ioctl(fb->fd, FBIOGET_FSCREENINFO, &ffsi) < 0) {
+        fprintf(stdout, "ERROR: ioctl(FBIOGET_FSCREENINFO)");
         goto out;
-	}
+    }
 
-	fb->w       = fvsi.xres;
-	fb->h       = fvsi.yres;
-	fb->bpp     = fvsi.bits_per_pixel;
-	fb->stride  = ffsi.line_length;
+    fb->w       = fvsi.xres;
+    fb->h       = fvsi.yres;
+    fb->bpp     = fvsi.bits_per_pixel;
+    fb->stride  = ffsi.line_length;
+
+#if defined (__USE_TFT_LCD__)
+    fb->w       = fvsi.yres;
+    fb->h       = fvsi.xres;
+#endif
 
     fprintf(stdout, "[ %s : %s ] fb_x_res : %d, fb_y_res : %d\n",
             __FILE__, __func__, fb->w, fb->h);
 
-	if (fvsi.red.length != 8 || fvsi.green.length != 8 || fvsi.blue.length != 8) {
-		fprintf(stdout, "ERROR: mmap");
+    if (fvsi.red.length != 8 || fvsi.green.length != 8 || fvsi.blue.length != 8) {
+        fprintf(stdout, "ERROR: mmap");
         goto out;
-	}
+    }
 
-	fb->base = (char *)mmap((caddr_t) NULL, ffsi.smem_len,
+    fb->base = (char *)mmap((caddr_t) NULL, ffsi.smem_len,
                         PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);
 
-	if (fb->base == (char *)-1) {
-		fprintf(stdout, "ERROR: mmap");
+    if (fb->base == (char *)-1) {
+        fprintf(stdout, "ERROR: mmap");
         goto out;
-	}
+    }
 
     fb->data = fb->base + ((unsigned long) ffsi.smem_start % (unsigned long) getpagesize());
     /* disable fb cursor */
