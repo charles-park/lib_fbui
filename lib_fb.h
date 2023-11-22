@@ -17,33 +17,7 @@
 //-----------------------------------------------------------------------------
 // Color table & convert macro
 //-----------------------------------------------------------------------------
-#define RGB_TO_UINT(r,g,b)  (((r << 16) | (g << 8) | b) & 0xFFFFFF)
-#define UINT_TO_R(i)        ((i >> 16) & 0xFF)
-#define UINT_TO_G(i)        ((i >>  8) & 0xFF)
-#define UINT_TO_B(i)        ((i      ) & 0xFF)
-
-/*
-    https://www.rapidtables.com/web/color/RGB_Color.html
-*/
-#define COLOR_BLACK         RGB_TO_UINT(0, 0, 0)
-#define COLOR_WHITE         RGB_TO_UINT(255,255,255)
-#define COLOR_RED	        RGB_TO_UINT(255,0,0)
-#define COLOR_LIME	        RGB_TO_UINT(0,255,0)
-#define COLOR_BLUE	        RGB_TO_UINT(0,0,255)
-#define COLOR_YELLOW        RGB_TO_UINT(255,255,0)
-#define COLOR_GREEN	        RGB_TO_UINT(0,128,0)
-#define COLOR_CYAN          RGB_TO_UINT(0,255,255)
-#define COLOR_MAGENTA       RGB_TO_UINT(255,0,255)
-#define COLOR_SILVER        RGB_TO_UINT(192,192,192)
-#define COLOR_DIM_GRAY      RGB_TO_UINT(105,105,105)
-#define COLOR_GRAY          RGB_TO_UINT(128,128,128)
-#define COLOR_DARK_GRAY     RGB_TO_UINT(169,169,169)
-#define COLOR_LIGHT_GRAY    RGB_TO_UINT(211,211,211)
-#define COLOR_MAROON        RGB_TO_UINT(128,0,0)
-#define COLOR_OLIVE         RGB_TO_UINT(128,128,0)
-#define COLOR_PURPLE        RGB_TO_UINT(128,0,128)
-#define COLOR_TEAL          RGB_TO_UINT(0,128,128)
-#define COLOR_NAVY          RGB_TO_UINT(0,0,128)
+#include "color_table.h"
 
 //-----------------------------------------------------------------------------
 // Framebuffer blink control
