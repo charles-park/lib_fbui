@@ -40,6 +40,8 @@ static   void _ui_clr_str        (fb_info_t *fb, rect_item_t *r_item, string_ite
 static   void _ui_update_r       (fb_info_t *fb, rect_item_t *r_item);
 static   void _ui_update_s       (fb_info_t *fb, string_item_t *s_item, int x, int y);
 static   void _ui_parser_cmd_C   (char *buf, fb_info_t *fb, ui_grp_t *ui_grp);
+static   void _ui_parser_cmd_R   (char *buf, fb_info_t *fb, ui_grp_t *ui_grp);
+static   void _ui_parser_cmd_S   (char *buf, ui_grp_t *ui_grp);
 static   void _ui_parser_cmd_B   (char *buf, fb_info_t *fb, ui_grp_t *ui_grp);
 static   void _ui_parser_cmd_I   (char *buf, ui_grp_t *ui_grp);
 static   void _ui_parser_cmd_T   (char *buf, ui_grp_t *ui_grp);
@@ -65,15 +67,15 @@ static   void _ui_update         (fb_info_t *fb, ui_grp_t *ui_grp, int id);
 
    [ type ]
    '#' : commant
+   'C' : default config data
    'R' : Rect data
    'S' : string data
-   'C' : default config data
-   'L' : Line data
-   'G' : Rect group data
+   'I' : Init item data
+   'T' : Touch box data
 
    Rect data x, y, w, h는 fb의 비율값 (0%~100%), 모든 컬러값은 32bits rgb data.
 
-   ui.cfg file 참조
+   fbui_v20.cfg file 참조
 */
 
 //------------------------------------------------------------------------------
@@ -147,6 +149,8 @@ static void _ui_update_s (fb_info_t *fb, string_item_t *s_item, int x, int y)
 }
 
 //------------------------------------------------------------------------------
+// C(cmd), LCD RGB배열(0 = RGB, 1 = BGR), 기본문자색상(fc), 기본박스색상(rc), 기본외곽색상(lc), 한글폰트(fn:0~4)
+//------------------------------------------------------------------------------
 static void _ui_parser_cmd_C (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
 {
    char *ptr = strtok (buf, ",");
@@ -160,6 +164,112 @@ static void _ui_parser_cmd_C (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
    set_font(ui_grp->f_type);
 }
 
+//------------------------------------------------------------------------------
+// R(cmd), ID(uid), 시작x좌표(x%), 시작y좌표(y%), 넓이(w%), 높이(h%), 외곽두께(lw), color, line_color, GroupID,
+//------------------------------------------------------------------------------
+static void _ui_parser_cmd_R (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
+{
+   int item_cnt = ui_grp->b_item_cnt, id, item_pos, color;
+   char *ptr = strtok (buf, ",");
+   rect_item_t *r;
+
+   ptr = strtok (NULL, ",");  id = atoi(ptr);
+
+   /* 설정되어진 ID가 있는지 찾는다. (기존 설정되어진 값 변경시) */
+   for (item_pos = 0; item_pos < item_cnt; item_pos++) {
+      if (ui_grp->b_item[item_pos].id == id)
+         break;
+   }
+   ui_grp->b_item[item_pos].id = id;
+   r = &ui_grp->b_item[item_pos].r;
+
+   ptr = strtok (NULL, ",");     r->x  = atoi(ptr);
+   ptr = strtok (NULL, ",");     r->y  = atoi(ptr);
+   ptr = strtok (NULL, ",");     r->w  = atoi(ptr);
+   ptr = strtok (NULL, ",");     r->h  = atoi(ptr);
+   ptr = strtok (NULL, ",");     r->lw = atoi(ptr);
+
+   r->x = (r->x * fb->w / 100);  r->y = (r->y * fb->h / 100);
+   r->w = (r->w * fb->w / 100);  r->h = (r->h * fb->h / 100);
+
+   r->bc.uint = ui_grp->bc.uint; r->lc.uint = ui_grp->lc.uint;
+
+   ptr = strtok (NULL, ",");
+   if ((color = strtol(ptr, NULL, 16)) >= 0)
+      r->bc.uint = color;
+
+   ptr = strtok (NULL, ",");
+   if ((color = strtol(ptr, NULL, 16)) >= 0)
+      r->lc.uint = color;
+
+   ptr = strtok (NULL, ",");
+   ui_grp->b_item[item_pos].gid = atoi(ptr);
+
+   if (item_cnt == item_pos)
+      ui_grp->b_item_cnt++;
+}
+
+//------------------------------------------------------------------------------
+// S(cmd), ID(uid), 폰트크기(scale), 문자정렬(align), color, back_color, 문자열(str)
+//------------------------------------------------------------------------------
+static void _ui_parser_cmd_S (char *buf, ui_grp_t *ui_grp)
+{
+   int item_cnt = ui_grp->b_item_cnt, id, item_pos, color;
+   char *ptr = strtok (buf, ",");
+   string_item_t *s;
+
+   ptr = strtok (NULL, ",");  id = atoi(ptr);
+
+   /* 설정되어진 ID가 있는지 찾는다. (기존 설정되어진 값 변경시) */
+   for (item_pos = 0; item_pos < item_cnt; item_pos++) {
+      if (ui_grp->b_item[item_pos].id == id)
+         break;
+   }
+   ui_grp->b_item[item_pos].id = id;
+   s = &ui_grp->b_item[item_pos].s;
+   ptr = strtok (NULL, ",");     s->scale = atoi(ptr);
+   ptr = strtok (NULL, ",");     ui_grp->b_item[item_pos].s_align = atoi(ptr);
+
+   s->f_type  = ui_grp->f_type;  s->fc.uint = ui_grp->fc.uint;
+   s->bc.uint = ui_grp->bc.uint;
+
+   ptr = strtok (NULL, ",");
+   if ((color = strtol(ptr, NULL, 16)) >= 0)
+      s->fc.uint = color;
+
+   ptr = strtok (NULL, ",");
+   if ((color = strtol(ptr, NULL, 16)) >= 0)
+      s->bc.uint = color;
+   else
+      s->bc.uint = ui_grp->b_item[item_pos].r.bc.uint;
+
+   /* 문자열이 없거나 앞부분의 공백이 있는 경우 제거 */
+   if ((ptr = strtok (NULL, ",")) != NULL) {
+      int slen = strlen(ptr);
+
+      while ((*ptr == 0x20) && slen--)
+         ptr++;
+
+      s->len = slen;
+      strncpy(s->str, ptr, s->len);
+      // default string for ui_reset
+      strncpy(ui_grp->b_item[item_pos].s_dfl, ptr, s->len);
+   }
+
+   switch (ui_grp->b_item[item_pos].s_align) {
+      case STR_ALIGN_L: case STR_ALIGN_R: case STR_ALIGN_C:
+      default :
+         s->x = -1;  s->y = -1;
+      break;
+   }
+
+   if (item_cnt == item_pos)
+      ui_grp->b_item_cnt++;
+}
+
+//------------------------------------------------------------------------------
+// B(cmd), ID(id), 시작x좌표(x%), 시작y좌표(y%), 넓이(w%), 높이(h%), 외곽두께(lw),
+//          폰트크기(scale), 문자정렬(align), GroupID, 문자열(str)
 //------------------------------------------------------------------------------
 static void _ui_parser_cmd_B (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
 {
@@ -204,9 +314,8 @@ static void _ui_parser_cmd_B (char *buf, fb_info_t *fb, ui_grp_t *ui_grp)
    s->bc.uint = ui_grp->bc.uint;
 
    switch (ui_grp->b_item[item_cnt].s_align) {
-      case STR_ALIGN_L:
-      case STR_ALIGN_R:
-      default :   case STR_ALIGN_C:
+      case STR_ALIGN_L: case STR_ALIGN_R: case STR_ALIGN_C:
+      default :
          s->x = -1;  s->y = -1;
       break;
    }
@@ -239,9 +348,11 @@ static void _ui_parser_cmd_I (char *buf, ui_grp_t *ui_grp)
 }
 
 //------------------------------------------------------------------------------
+// T(cmd), ID(uid), Press Color, Release Color
+//------------------------------------------------------------------------------
 static void _ui_parser_cmd_T (char *buf, ui_grp_t *ui_grp)
 {
-   int item_cnt = ui_grp->t_item_cnt, color;
+   int item_cnt = ui_grp->t_item_cnt, color, id, item_pos;
    char *ptr = strtok (buf, ",");
 
    ui_grp->t_item[item_cnt].ui_id   = 0;
@@ -259,6 +370,17 @@ static void _ui_parser_cmd_T (char *buf, ui_grp_t *ui_grp)
    if ((ptr = strtok (NULL, ",")) != NULL) {
       if ((color = strtol (ptr, NULL, 16)) >= 0)
          ui_grp->t_item[item_cnt].rc.uint = color;
+      else {
+         /* 설정되어진 ID가 있는지 찾는다. (기존 설정되어진 값 변경시) */
+         id = ui_grp->t_item[item_cnt].ui_id;
+         for (item_pos = 0; item_pos < ui_grp->b_item_cnt; item_pos++) {
+            if (ui_grp->b_item[item_pos].id == id) {
+               rect_item_t *r = &ui_grp->b_item[item_pos].r;
+               ui_grp->t_item[item_cnt].rc.uint = r->bc.uint;
+               break;
+            }
+         }
+      }
    }
    item_cnt++;
    ui_grp->t_item_cnt = item_cnt;
@@ -542,6 +664,8 @@ ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
          case  'B':  _ui_parser_cmd_B (buf, fb, ui_grp); break;
          case  'I':  _ui_parser_cmd_I (buf, ui_grp);     break;
          case  'T':  _ui_parser_cmd_T (buf, ui_grp);     break;
+         case  'R':  _ui_parser_cmd_R (buf, fb, ui_grp); break;
+         case  'S':  _ui_parser_cmd_S (buf, ui_grp);     break;
          default :
             fprintf(stdout, "ERROR: Unknown parser command! cmd = %c\n", buf[0]);
          case  '#':  case  '\n':
