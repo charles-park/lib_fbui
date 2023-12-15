@@ -42,10 +42,12 @@ static   void _ui_update_s       (fb_info_t *fb, string_item_t *s_item, int x, i
 static   void _ui_parser_cmd_C   (char *buf, fb_info_t *fb, ui_grp_t *ui_grp);
 static   void _ui_parser_cmd_B   (char *buf, fb_info_t *fb, ui_grp_t *ui_grp);
 static   void _ui_parser_cmd_I   (char *buf, ui_grp_t *ui_grp);
+static   void _ui_parser_cmd_T   (char *buf, ui_grp_t *ui_grp);
 static   void _ui_str_pos_xy     (rect_item_t *r_item, string_item_t *s_item);
 static   void *_ui_find_item     (ui_grp_t *ui_grp, int fid);
 static   void _ui_update         (fb_info_t *fb, ui_grp_t *ui_grp, int id);
 
+         int ui_get_titem        (fb_info_t *fb, ui_grp_t *ui_grp, ts_event_t *event);
          void ui_set_ritem       (fb_info_t *fb, ui_grp_t *ui_grp, int f_id, int bc, int lc);
          void ui_set_sitem       (fb_info_t *fb, ui_grp_t *ui_grp, int f_1d, int fc, int bc, char *str);
          void ui_set_str         (fb_info_t *fb, ui_grp_t *ui_grp,
@@ -237,6 +239,32 @@ static void _ui_parser_cmd_I (char *buf, ui_grp_t *ui_grp)
 }
 
 //------------------------------------------------------------------------------
+static void _ui_parser_cmd_T (char *buf, ui_grp_t *ui_grp)
+{
+   int item_cnt = ui_grp->t_item_cnt, color;
+   char *ptr = strtok (buf, ",");
+
+   ui_grp->t_item[item_cnt].ui_id   = 0;
+   ui_grp->t_item[item_cnt].pc.uint = ui_grp->bc.uint;
+   ui_grp->t_item[item_cnt].rc.uint = ui_grp->bc.uint;
+
+   if ((ptr = strtok (NULL, ",")) != NULL)
+      ui_grp->t_item[item_cnt].ui_id = atoi(ptr);
+
+   if ((ptr = strtok (NULL, ",")) != NULL) {
+      if ((color = strtol (ptr, NULL, 16)) >= 0)
+         ui_grp->t_item[item_cnt].pc.uint = color;
+   }
+
+   if ((ptr = strtok (NULL, ",")) != NULL) {
+      if ((color = strtol (ptr, NULL, 16)) >= 0)
+         ui_grp->t_item[item_cnt].rc.uint = color;
+   }
+   item_cnt++;
+   ui_grp->t_item_cnt = item_cnt;
+}
+
+//------------------------------------------------------------------------------
 static void _ui_str_pos_xy (rect_item_t *r_item, string_item_t *s_item)
 {
    int slen = _my_strlen(s_item->str);
@@ -253,10 +281,43 @@ static void _ui_str_pos_xy (rect_item_t *r_item, string_item_t *s_item)
 static void *_ui_find_item (ui_grp_t *ui_grp, int fid)
 {
    int i;
-   for (i = 0; i < ui_grp->b_item_cnt; i++)
+   for (i = 0; i < ui_grp->b_item_cnt; i++) {
       if (fid == ui_grp->b_item[i].id)
          return &ui_grp->b_item[i];
+   }
    return NULL;
+}
+
+//------------------------------------------------------------------------------
+int ui_get_titem (fb_info_t *fb, ui_grp_t *ui_grp, ts_event_t *event)
+{
+   int ui_id, x_s, x_e, y_s, y_e, i, p_color, r_color;
+   b_item_t *pitem;
+
+   for (i = 0; i < ui_grp->t_item_cnt; i++) {
+      ui_id    = ui_grp->t_item[i].ui_id;
+      p_color  = ui_grp->t_item[i].pc.uint;
+      r_color  = ui_grp->t_item[i].rc.uint;
+
+      if ((pitem = (b_item_t *)_ui_find_item(ui_grp, ui_id)) == NULL)
+         continue;
+      x_s = pitem->r.x;
+      x_e = pitem->r.x + pitem->r.w;
+      y_s = pitem->r.y;
+      y_e = pitem->r.y + pitem->r.h;
+
+      if ((x_s <= event->x) && (x_e > event->x)) {
+         if ((y_s <= event->y) && (y_e > event->y)) {
+            if (event->status == eTS_STATUS_PRESS)
+               ui_set_ritem (fb, ui_grp, ui_id, p_color, -1);
+            else
+               ui_set_ritem (fb, ui_grp, ui_id, r_color, -1);
+
+            return ui_id;
+         }
+      }
+   }
+   return -1;
 }
 
 //------------------------------------------------------------------------------
@@ -480,6 +541,7 @@ ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
          case  'C':  _ui_parser_cmd_C (buf, fb, ui_grp); break;
          case  'B':  _ui_parser_cmd_B (buf, fb, ui_grp); break;
          case  'I':  _ui_parser_cmd_I (buf, ui_grp);     break;
+         case  'T':  _ui_parser_cmd_T (buf, ui_grp);     break;
          default :
             fprintf(stdout, "ERROR: Unknown parser command! cmd = %c\n", buf[0]);
          case  '#':  case  '\n':
