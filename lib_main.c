@@ -36,9 +36,10 @@
 //------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 const char *OPT_DEVICE_NAME = "/dev/fb0";
+const char *OPT_TS_DEVICE_NAME = "/dev/input/event0";
 const char *OPT_FBUI_CFG = "fbui.cfg";
 const char *OPT_TEXT_STR = "FrameBuffer 테스트 프로그램입니다.";
-unsigned int opt_x = 0, opt_y = 0, opt_width = 0, opt_height = 0, opt_color = 0;
+unsigned int opt_x = 0, opt_y = 0, opt_width = 0, opt_height = 0, opt_color = 0, opt_fb_rotate = 0;
 unsigned char opt_red = 0, opt_green = 0, opt_blue = 0, opt_thckness = 1, opt_scale = 1;
 unsigned char opt_clear = 0, opt_fill = 0, opt_info = 0, opt_font = 0, opt_ui_cfg = 0;
 
@@ -48,6 +49,8 @@ static void print_usage(const char *prog)
 {
     printf("Usage: %s [-DrgbxywhfntscCi]\n", prog);
     puts("  -D --device    device to use (default /dev/fb0)\n"
+         "  -T --device    device to use (default /dev/input/event0)\n"
+         "  -R --rotate    fb rotate display (0, 90, 180, 270. default = 0)\n"
          "  -r --red       pixel red hex value.(default = 0)\n"
          "  -g --green     pixel green hex value.(default = 0)\n"
          "  -b --blue      pixel blue hex value.(default = 0)\n"
@@ -78,7 +81,9 @@ static void parse_opts(int argc, char *argv[])
 {
     while (1) {
         static const struct option lopts[] = {
-            { "device",  	1, 0, 'D' },
+            { "fb_device",  1, 0, 'D' },
+            { "ts_device",  1, 0, 'T' },
+            { "rotate",  	1, 0, 'R' },
             { "red",		1, 0, 'r' },
             { "green",		1, 0, 'g' },
             { "blue",		1, 0, 'b' },
@@ -99,7 +104,7 @@ static void parse_opts(int argc, char *argv[])
         };
         int c;
 
-        c = getopt_long(argc, argv, "D:r:g:b:x:y:w:h:fn:t:s:c:CiF:I:", lopts, NULL);
+        c = getopt_long(argc, argv, "D:T:R:r:g:b:x:y:w:h:fn:t:s:c:CiF:I:", lopts, NULL);
 
         if (c == -1)
             break;
@@ -107,6 +112,12 @@ static void parse_opts(int argc, char *argv[])
         switch (c) {
         case 'D':
             OPT_DEVICE_NAME = optarg;
+            break;
+        case 'T':
+            OPT_TS_DEVICE_NAME = optarg;
+            break;
+        case 'R':
+            opt_fb_rotate = atoi(optarg);
             break;
         case 'r':
             opt_red = strtol(optarg, NULL, 16);
@@ -197,6 +208,7 @@ int main(int argc, char **argv)
         exit(1);
     }
     fb_cursor (0);
+    fb_set_rotate (pfb, opt_fb_rotate);
 
     if (opt_ui_cfg) {
         if ((ui_grp = ui_init (pfb, OPT_FBUI_CFG)) == NULL) {
@@ -262,10 +274,10 @@ int main(int argc, char **argv)
         ts_t *p_ts;
         ts_event_t event;
 
-        p_ts = ts_init ("/dev/input/event0");
-        while (1) {
+        p_ts = ts_init (OPT_TS_DEVICE_NAME);
+        while (p_ts != NULL) {
             usleep (10000);
-            if (ts_get_event (p_ts, &event)) {
+            if (ts_get_event (pfb, p_ts, &event)) {
                 printf ("status = %d, x = %d, y = %d, ui_id = %d\n",
                         event.status, event.x, event.y, ui_get_titem (pfb, ui_grp, &event));
 

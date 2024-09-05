@@ -55,6 +55,7 @@ static void draw_ascii_bitmap (fb_info_t *fb,
                     int f_color, int b_color, int scale);
 static void _draw_text (fb_info_t *fb, int x, int y, char *p_str,
                         int f_color, int b_color, int scale);
+static void _put_pixel (fb_info_t *fb, int x, int y, int color);
 void         put_pixel (fb_info_t *fb, int x, int y, int color);
 void         draw_text (fb_info_t *fb, int x, int y,
                      int f_color, int b_color, int scale, char *fmt, ...);
@@ -64,6 +65,8 @@ void         draw_fill_rect (fb_info_t *fb, int x, int y, int w, int h, int colo
 void         set_font(enum eFONTS_HANGUL s_font);
 void         fb_clear (fb_info_t *fb);
 void         fb_close (fb_info_t *fb);
+int          fb_get_rotate (fb_info_t *fb);
+void         fb_set_rotate (fb_info_t *fb, int rotate);
 fb_info_t    *fb_init (const char *DEVICE_NAME);
 
 //-----------------------------------------------------------------------------
@@ -130,37 +133,54 @@ static unsigned char *get_hangul_image( unsigned char HAN1,
 }
 
 //-----------------------------------------------------------------------------
-#if defined(__USE_TFT_LCD__)
-    #define TFT_LCD_X   800
-    #define TFT_LCD_Y   1280
-#endif
-void put_pixel (fb_info_t *fb, int x, int y, int color)
+static void _put_pixel (fb_info_t *fb, int x, int y, int color)
 {
     fb_color_u c;
     int offset = (y * fb->stride) + (x * (fb->bpp >> 3));
 
-    if ((x < fb->w) && (y < fb->h)) {
-#if defined(__USE_TFT_LCD__)
-        int swap = y;
-        y = x;
-        x = TFT_LCD_X - swap -1;
-        offset = (y * fb->stride) + (x * (fb->bpp >> 3));
-#endif
-        c.uint = color;
-        if (fb->is_bgr) {
-            *(fb->data + offset) = c.bits.b;  offset++;
-            *(fb->data + offset) = c.bits.g;  offset++;
-            *(fb->data + offset) = c.bits.r;  offset++;
-        } else {
-            *(fb->data + offset) = c.bits.r;  offset++;
-            *(fb->data + offset) = c.bits.g;  offset++;
-            *(fb->data + offset) = c.bits.b;  offset++;
-        }
-        if (fb->bpp == 32)
-            *(fb->data + offset) = 0xFF;
+    c.uint = color;
+    if (fb->is_bgr) {
+        *(fb->data + offset) = c.bits.b;  offset++;
+        *(fb->data + offset) = c.bits.g;  offset++;
+        *(fb->data + offset) = c.bits.r;  offset++;
     } else {
-        fprintf(stdout, "Out of range.(width = %d, x = %d, height = %d, y = %d)\n",
-            fb->w, x, fb->h, y);
+        *(fb->data + offset) = c.bits.r;  offset++;
+        *(fb->data + offset) = c.bits.g;  offset++;
+        *(fb->data + offset) = c.bits.b;  offset++;
+    }
+    if (fb->bpp == 32)
+        *(fb->data + offset) = 0xFF;
+}
+
+//-----------------------------------------------------------------------------
+void put_pixel (fb_info_t *fb, int x, int y, int color)
+{
+    if ((x < fb->w) && (y < fb->h)) {
+        int cal_x, cal_y;
+
+        switch (fb->rotate) {
+            default:
+            case eFB_ROTATE_0:
+                cal_x = x;
+                cal_y = y;
+                break;
+            case eFB_ROTATE_90:
+                cal_x = fb->h -y -1;
+                cal_y = x;
+                break;
+            case eFB_ROTATE_180:
+                cal_x = fb->w -x -1;
+                cal_y = fb->h -y -1;
+                break;
+            case eFB_ROTATE_270:
+                cal_x = y;
+                cal_y = fb->w -x -1;
+                break;
+        }
+        _put_pixel (fb, cal_x, cal_y, color);
+    } else {
+        fprintf(stdout, "Out of range.(width = %d, x = %d, height = %d, y = %d, rotate = %d)\n",
+            fb->w, x, fb->h, y, fb->rotate);
     }
 }
 
@@ -360,6 +380,34 @@ void fb_cursor (char status)
 }
 
 //-----------------------------------------------------------------------------
+void fb_set_rotate (fb_info_t *fb, int rotate)
+{
+    int swap;
+
+    fb->rotate = rotate;
+
+    switch (rotate) {
+        case eFB_ROTATE_90: case eFB_ROTATE_270:
+            swap  = fb->h;
+            fb->h = fb->w;
+            fb->w = swap;
+            break;
+        case eFB_ROTATE_180:
+            break;
+        default :
+            fb->rotate = eFB_ROTATE_0;
+            break;
+    }
+    fprintf(stdout, "%s : rotate = %d\n", __func__, fb->rotate);
+}
+
+//-----------------------------------------------------------------------------
+int fb_get_rotate (fb_info_t *fb)
+{
+    return fb->rotate;
+}
+
+//-----------------------------------------------------------------------------
 fb_info_t *fb_init (const char *DEVICE_NAME)
 {
     struct fb_var_screeninfo fvsi;
@@ -392,8 +440,9 @@ fb_info_t *fb_init (const char *DEVICE_NAME)
     fb->stride  = ffsi.line_length;
 
 #if defined (__USE_TFT_LCD__)
-    fb->w       = fvsi.yres;
-    fb->h       = fvsi.xres;
+    fb_set_rotate (fb, eFB_ROTATE_90);
+#else
+    fb_set_rotate (fb, eFB_ROTATE_0);
 #endif
 
     fprintf(stdout, "[ %s : %s ] fb_x_res : %d, fb_y_res : %d\n",

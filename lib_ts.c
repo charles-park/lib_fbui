@@ -29,6 +29,7 @@
 #include <linux/input.h>
 
 //-----------------------------------------------------------------------------
+#include "lib_fb.h"
 #include "lib_ts.h"
 
 pthread_mutex_t mutex_event = PTHREAD_MUTEX_INITIALIZER;
@@ -41,7 +42,8 @@ static  int queue_put (event_queue_t *q, ts_event_t *d);
 static  int queue_get (event_queue_t *q, ts_event_t *d);
         void *ts_thread_func(void *data);
 
-        int ts_get_event    (ts_t *p_ts, ts_event_t *get_ts_event);
+//        int ts_get_event    (ts_t *p_ts, ts_event_t *get_ts_event);
+        int ts_get_event    (fb_info_t *fb, ts_t *p_ts, ts_event_t *get_ts_event);
         ts_t *ts_init       (const char *DEVICE_NAME);;
         void ts_deinit      (ts_t *p_ts);
 
@@ -135,9 +137,43 @@ void *ts_thread_func (void *data)
 }
 
 //-----------------------------------------------------------------------------
-int ts_get_event (ts_t *p_ts, ts_event_t *get_ts_event)
+int ts_get_event (fb_info_t *fb, ts_t *p_ts, ts_event_t *get_ts_event)
 {
-    return queue_get (&p_ts->event_q, get_ts_event);
+    if (queue_get (&p_ts->event_q, get_ts_event)) {
+        int cal_x, cal_y, cal_x_w, cal_y_w;
+
+        switch (fb->rotate) {
+            default:
+            case eFB_ROTATE_0:
+                cal_x   = get_ts_event->x;
+                cal_y   = get_ts_event->y;
+                cal_x_w = (p_ts->abs_x_max - p_ts->abs_x_min);
+                cal_y_w = (p_ts->abs_y_max - p_ts->abs_y_min);
+                break;
+            case eFB_ROTATE_90:
+                cal_x = get_ts_event->y;
+                cal_y = fb->h -get_ts_event->x -1;
+                cal_x_w = (p_ts->abs_y_max - p_ts->abs_y_min);
+                cal_y_w = (p_ts->abs_x_max - p_ts->abs_x_min);
+                break;
+            case eFB_ROTATE_180:
+                cal_x   = fb->w -get_ts_event->x -1;
+                cal_y   = fb->h -get_ts_event->y -1;
+                cal_x_w = (p_ts->abs_x_max - p_ts->abs_x_min);
+                cal_y_w = (p_ts->abs_y_max - p_ts->abs_y_min);
+                break;
+            case eFB_ROTATE_270:
+                cal_x = fb->w -get_ts_event->y -1;
+                cal_y = get_ts_event->x;
+                cal_x_w = (p_ts->abs_y_max - p_ts->abs_y_min);
+                cal_y_w = (p_ts->abs_x_max - p_ts->abs_x_min);
+                break;
+        }
+        get_ts_event->x = (fb->w * cal_x) / cal_x_w;
+        get_ts_event->y = (fb->h * cal_y) / cal_y_w;
+        return 1;
+    }
+    return 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -151,14 +187,34 @@ ts_t *ts_init (const char *DEVICE_NAME)
     }
     memset (p_ts, 0, sizeof(ts_t));
 
-    if (pthread_create (&p_ts->ts_thread, NULL, ts_thread_func, (void *)p_ts)) {
-        printf ("%s : cannot create ts_thread!\n", __func__);
-        goto exit;
-    }
-
     // touchscreen open
     if ((p_ts->fd = open (DEVICE_NAME, O_RDONLY)) == -1) {
         printf ("%s : cannot open touchscreen device (%s)\n", __func__, DEVICE_NAME);
+        goto exit;
+    }
+
+    // get touchscreen info (abs max, min)
+    {
+        int abs[6] = {0,};
+        ioctl (p_ts->fd, EVIOCGABS(0), abs);    // abs_x
+        p_ts->abs_x_min   = abs[1];
+        p_ts->abs_x_max   = abs[2];
+        p_ts->abs_x_width = p_ts->abs_x_max - p_ts->abs_x_min;
+        ioctl (p_ts->fd, EVIOCGABS(1), abs);    // abs_y
+        p_ts->abs_y_min   = abs[1];
+        p_ts->abs_y_max   = abs[2];
+        p_ts->abs_y_width = p_ts->abs_y_max - p_ts->abs_y_min;
+    }
+    printf ("dev = %s, abs_x_max = %d, abs_x_min = %d, abs_y_max = %d, abs_y_min = %d\n",
+        DEVICE_NAME, p_ts->abs_x_max, p_ts->abs_x_min, p_ts->abs_y_max, p_ts->abs_y_min);
+
+    if (!(p_ts->abs_x_max) || !(p_ts->abs_y_max)) {
+        printf ("%s : unknown touchscreen device (%s)\n", __func__, DEVICE_NAME);
+        goto exit;
+    }
+
+    if (pthread_create (&p_ts->ts_thread, NULL, ts_thread_func, (void *)p_ts)) {
+        printf ("%s : cannot create ts_thread!\n", __func__);
         goto exit;
     }
 

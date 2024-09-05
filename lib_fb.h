@@ -25,6 +25,15 @@
 #define FB_CURSOR_CONTROL   "/sys/class/graphics/fbcon/cursor_blink"
 
 //-----------------------------------------------------------------------------
+enum eFB_ROTATE {
+    eFB_ROTATE_0   = 0,
+    eFB_ROTATE_90  = 90,
+    eFB_ROTATE_180 = 180,
+    eFB_ROTATE_270 = 270,
+    eROTATE_END,
+};
+
+//-----------------------------------------------------------------------------
 // Frame buffer struct
 //-----------------------------------------------------------------------------
 typedef union fb_color__u {
@@ -39,6 +48,7 @@ typedef union fb_color__u {
 
 typedef struct fb_info__t {
     int     fd;
+    int     rotate;
     int     w;
     int     h;
     int     stride;
@@ -74,6 +84,8 @@ extern void         set_font    (enum eFONTS_HANGUL s_font);
 extern void         fb_clear    (fb_info_t *fb);
 extern void         fb_close    (fb_info_t *fb);
 extern void         fb_cursor   (char status);
+extern int          fb_get_rotate (fb_info_t *fb);
+extern void         fb_set_rotate (fb_info_t *fb, int rotate);
 extern fb_info_t    *fb_init    (const char *DEVICE_NAME);
 
 //------------------------------------------------------------------------------------------------

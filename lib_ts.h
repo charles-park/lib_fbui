@@ -38,6 +38,8 @@ typedef struct event_queue__t {
 
 typedef struct ts__t {
     int             fd;
+    int             abs_x_max, abs_x_min, abs_y_max, abs_y_min;
+    int             abs_x_width, abs_y_width;
     event_queue_t   event_q;
     pthread_t       ts_thread;
 }   ts_t;
@@ -45,7 +47,8 @@ typedef struct ts__t {
 //-----------------------------------------------------------------------------
 // Function prototype define.
 //-----------------------------------------------------------------------------
-extern int  ts_get_event    (ts_t *p_ts, ts_event_t *get_ts_event);
+//extern int  ts_get_event    (ts_t *p_ts, ts_event_t *get_ts_event);
+extern int  ts_get_event    (fb_info_t *fb, ts_t *p_ts, ts_event_t *get_ts_event);
 extern void ts_deinit       (ts_t *p_ts);
 extern ts_t *ts_init        (const char *DEVICE_NAME);;
 
