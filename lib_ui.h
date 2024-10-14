@@ -89,6 +89,16 @@ typedef struct t_item__t {
     fb_color_u      pc, rc;
 }   t_item_t;
 
+//------------------------------------------------------------------
+// Popup message item
+//------------------------------------------------------------------
+typedef struct p_item__t {
+    // time out
+    int             timeout;
+    rect_item_t     r;
+    string_item_t   s;
+}   p_item_t;
+
 typedef struct ui_group__t {
     int             f_type;
     fb_color_u      fc, bc, lc;
@@ -101,6 +111,8 @@ typedef struct ui_group__t {
 
     int             t_item_cnt;
     t_item_t        t_item[ITEM_COUNT_MAX];
+
+    p_item_t        p_item;
 }   ui_grp_t;
 
 //------------------------------------------------------------------------------
@@ -113,6 +125,12 @@ extern void     ui_set_printf   (fb_info_t *fb, ui_grp_t *ui_grp, int id, char *
 extern void     ui_update       (fb_info_t *fb, ui_grp_t *ui_grp, int id);
 extern void	    ui_update_group	(fb_info_t *fb, ui_grp_t *ui_grp, int gid);
 extern void     ui_close        (ui_grp_t *ui_grp);
+extern int      ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
+                        int w, int h, int lw,       /* box width, box height, box outline width */
+                        int fc, int bc, int lc,     /* color : font, background, outline */
+                        int fs, int ts, char *fmt, ...); /* font scale, display time(sec), msg format */
+
+extern int      ui_update_popup (fb_info_t *fb, ui_grp_t *ui_grp);
 extern ui_grp_t *ui_init        (fb_info_t *fb, const char *cfg_filename);
 
 //------------------------------------------------------------------------------

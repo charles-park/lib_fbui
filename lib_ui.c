@@ -445,53 +445,59 @@ int ui_get_titem (fb_info_t *fb, ui_grp_t *ui_grp, ts_event_t *event)
 //------------------------------------------------------------------------------
 void ui_set_ritem (fb_info_t *fb, ui_grp_t *ui_grp, int f_id, int bc, int lc)
 {
-   b_item_t *pitem = _ui_find_item(ui_grp, f_id);
+    b_item_t *pitem = _ui_find_item(ui_grp, f_id);
 
-   if ((f_id < ITEM_COUNT_MAX) && (pitem != NULL)) {
-      if (bc != -1)  pitem->r.bc.uint = bc;
-      if (lc != -1)  pitem->r.lc.uint = lc;
-      ui_set_sitem (fb, ui_grp, f_id, -1, bc, NULL);
-      ui_update (fb, ui_grp, f_id);
-   }
+    /* popup message */
+    if (ui_grp->p_item.timeout) return;
+
+    if ((f_id < ITEM_COUNT_MAX) && (pitem != NULL)) {
+        if (bc != -1)  pitem->r.bc.uint = bc;
+        if (lc != -1)  pitem->r.lc.uint = lc;
+        ui_set_sitem (fb, ui_grp, f_id, -1, bc, NULL);
+        ui_update (fb, ui_grp, f_id);
+    }
 }
 
 //------------------------------------------------------------------------------
 void ui_set_sitem (fb_info_t *fb, ui_grp_t *ui_grp, int f_id, int fc, int bc, char *str)
 {
-   b_item_t *pitem = _ui_find_item(ui_grp, f_id);
+    b_item_t *pitem = _ui_find_item(ui_grp, f_id);
 
-   if ((f_id < ITEM_COUNT_MAX) && (pitem != NULL)) {
-      /* font color 변경 */
-      if (fc != -1)
-         pitem->s.fc.uint = fc;
-      if (bc != -1)
-         pitem->s.bc.uint = bc;
+    /* popup message */
+    if (ui_grp->p_item.timeout) return;
 
-      /* 받아온 string을 buf에 저장 */
-      if (str != NULL)  {
-         char buf[ITEM_STR_MAX];
+    if ((f_id < ITEM_COUNT_MAX) && (pitem != NULL)) {
+        /* font color 변경 */
+        if (fc != -1)
+            pitem->s.fc.uint = fc;
+        if (bc != -1)
+            pitem->s.bc.uint = bc;
 
-         memset (buf, 0x00, sizeof(buf));
-         sprintf(buf, "%s", str);
-         /*
-         기존 문자열 보다 새로운 문자열이 더 작은 경우
-         기존 문자열을 배경색으로 덮어 씌운다.
-         */
-         if ((strlen(pitem->s.str) > strlen(buf)))
-            _ui_clr_str (fb, &pitem->r, &pitem->s);
+        /* 받아온 string을 buf에 저장 */
+        if (str != NULL)  {
+            char buf[ITEM_STR_MAX];
 
-         /* 새로운 string 복사 */
-         strncpy(pitem->s.str, buf, strlen(buf));
-         switch (pitem->s_align) {
-            default :
-            case STR_ALIGN_C:
-               pitem->s.x = -1, pitem->s.y = -1;
-            break;
-         }
-      }
-      _ui_str_pos_xy(&pitem->r, &pitem->s);
-      _ui_update_s (fb, &pitem->s, pitem->r.x, pitem->r.y);
-   }
+            memset (buf, 0x00, sizeof(buf));
+            sprintf(buf, "%s", str);
+            /*
+                기존 문자열 보다 새로운 문자열이 더 작은 경우
+                기존 문자열을 배경색으로 덮어 씌운다.
+            */
+            if ((strlen(pitem->s.str) > strlen(buf)))
+                _ui_clr_str (fb, &pitem->r, &pitem->s);
+
+            /* 새로운 string 복사 */
+            strncpy(pitem->s.str, buf, strlen(buf));
+            switch (pitem->s_align) {
+                default :
+                case STR_ALIGN_C:
+                    pitem->s.x = -1, pitem->s.y = -1;
+                    break;
+            }
+        }
+        _ui_str_pos_xy(&pitem->r, &pitem->s);
+        _ui_update_s (fb, &pitem->s, pitem->r.x, pitem->r.y);
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -549,24 +555,27 @@ void ui_set_str (fb_info_t *fb, ui_grp_t *ui_grp,
 //------------------------------------------------------------------------------
 static void _ui_update (fb_info_t *fb, ui_grp_t *ui_grp, int id)
 {
-   b_item_t *pitem = _ui_find_item(ui_grp, id);
+    b_item_t *pitem = _ui_find_item(ui_grp, id);
 
-   if ((id < ITEM_COUNT_MAX) && (pitem != NULL)) {
-      pitem->s.f_type = ui_grp->f_type;
+    /* popup message */
+    if (ui_grp->p_item.timeout) return;
 
-      if ((signed)pitem->s.bc.uint < 0)
-         pitem->s.bc.uint = pitem->r.bc.uint;
+    if ((id < ITEM_COUNT_MAX) && (pitem != NULL)) {
+        pitem->s.f_type = ui_grp->f_type;
 
-      set_font(pitem->s.f_type);
+        if ((signed)pitem->s.bc.uint < 0)
+            pitem->s.bc.uint = pitem->r.bc.uint;
 
-      if (pitem->s.scale < 0)
-         pitem->s.scale = _ui_str_scale (pitem->r.w, pitem->r.h, pitem->r.lw,
-                                       _my_strlen(pitem->s.str));
+        set_font(pitem->s.f_type);
 
-      _ui_str_pos_xy(&pitem->r, &pitem->s);
-      _ui_update_r (fb, &pitem->r);
-      _ui_update_s (fb, &pitem->s, pitem->r.x, pitem->r.y);
-   }
+        if (pitem->s.scale < 0)
+            pitem->s.scale = _ui_str_scale (pitem->r.w, pitem->r.h, pitem->r.lw,
+                                               _my_strlen(pitem->s.str));
+
+        _ui_str_pos_xy(&pitem->r, &pitem->s);
+        _ui_update_r (fb, &pitem->r);
+        _ui_update_s (fb, &pitem->s, pitem->r.x, pitem->r.y);
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -585,48 +594,42 @@ void ui_set_printf (fb_info_t *fb, ui_grp_t *ui_grp, int id, char *fmt, ...)
 //------------------------------------------------------------------------------
 void ui_update (fb_info_t *fb, ui_grp_t *ui_grp, int id)
 {
-   int i;
+    int i;
 
-   /* ui_grp에 등록되어있는 모든 item에 대하여 화면 업데이트 함 */
-   if (id < 0) {
-      /* All item refresh */
-#if 0
-      /* 초기화 값으로 전환 */
-      for (i = 0; i < ui_grp->b_item_cnt; i++) {
-         ui_grp->b_item[i].r.bc.uint = ui_grp->bc.uint;
-         ui_grp->b_item[i].r.lc.uint = ui_grp->lc.uint;
-         ui_grp->b_item[i].s.bc.uint = ui_grp->bc.uint;
-         ui_grp->b_item[i].s.fc.uint = ui_grp->fc.uint;
-         ui_grp->b_item[i].s.x = ui_grp->b_item[i].s.y = -1;
-         memset  (ui_grp->b_item[i].s.str, 0x00, ITEM_STR_MAX);
-         strncpy (ui_grp->b_item[i].s.str, ui_grp->b_item[i].s_dfl, strlen (ui_grp->b_item[i].s_dfl));
-      }
-#endif
-      /* 모든 item에 대한 화면 업데이트 */
-      for (i = 0; i < ITEM_COUNT_MAX; i++)
-         _ui_update (fb, ui_grp, i);
-   }
-   else
-      /* id값으로 설정된 1 개의 item에 대한 화면 업데이트 */
-      _ui_update (fb, ui_grp, id);
+    /* popup message */
+    if (ui_grp->p_item.timeout) return;
+
+    /* ui_grp에 등록되어있는 모든 item에 대하여 화면 업데이트 함 */
+    if (id < 0) {
+        /* 모든 item에 대한 화면 업데이트 */
+        for (i = 0; i < ITEM_COUNT_MAX; i++)
+            _ui_update (fb, ui_grp, i);
+    }
+    else
+        /* id값으로 설정된 1 개의 item에 대한 화면 업데이트 */
+        _ui_update (fb, ui_grp, id);
 }
 
 //------------------------------------------------------------------------------
 void ui_update_group (fb_info_t *fb, ui_grp_t *ui_grp, int gid)
 {
    int i;
-   for (i = 0; i < ui_grp->b_item_cnt; i++) {
-      if (ui_grp->b_item[i].gid == gid) {
-         ui_grp->b_item[i].r.bc.uint = ui_grp->bc.uint;
-         ui_grp->b_item[i].r.lc.uint = ui_grp->lc.uint;
-         ui_grp->b_item[i].s.bc.uint = ui_grp->bc.uint;
-         ui_grp->b_item[i].s.fc.uint = ui_grp->fc.uint;
-         ui_grp->b_item[i].s.x = ui_grp->b_item[i].s.y = -1;
-         memset  (ui_grp->b_item[i].s.str, 0x00, ITEM_STR_MAX);
-         strncpy (ui_grp->b_item[i].s.str, ui_grp->b_item[i].s_dfl, strlen (ui_grp->b_item[i].s_dfl));
-         _ui_update (fb, ui_grp, ui_grp->b_item[i].id);
-      }
-   }
+
+    /* popup message */
+    if (ui_grp->p_item.timeout) return;
+
+    for (i = 0; i < ui_grp->b_item_cnt; i++) {
+        if (ui_grp->b_item[i].gid == gid) {
+            ui_grp->b_item[i].r.bc.uint = ui_grp->bc.uint;
+            ui_grp->b_item[i].r.lc.uint = ui_grp->lc.uint;
+            ui_grp->b_item[i].s.bc.uint = ui_grp->bc.uint;
+            ui_grp->b_item[i].s.fc.uint = ui_grp->fc.uint;
+            ui_grp->b_item[i].s.x = ui_grp->b_item[i].s.y = -1;
+            memset  (ui_grp->b_item[i].s.str, 0x00, ITEM_STR_MAX);
+            strncpy (ui_grp->b_item[i].s.str, ui_grp->b_item[i].s_dfl, strlen (ui_grp->b_item[i].s_dfl));
+            _ui_update (fb, ui_grp, ui_grp->b_item[i].id);
+        }
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -638,57 +641,120 @@ void ui_close (ui_grp_t *ui_grp)
 }
 
 //------------------------------------------------------------------------------
+int ui_update_popup (fb_info_t *fb, ui_grp_t *ui_grp);
+int ui_update_popup (fb_info_t *fb, ui_grp_t *ui_grp)
+{
+    p_item_t *p = &ui_grp->p_item;
+    _ui_update_r (fb, &p->r);
+    _ui_update_s (fb, &p->s, p->r.x, p->r.y);
+    return 1;
+}
+
+//------------------------------------------------------------------------------
+int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
+                    int w, int h, int lw,       /* box width, box height, box outline width */
+                    int fc, int bc, int lc,     /* color : font, background, outline */
+                    int fs, int ts, char *fmt, ...); /* font scale, display time(sec), msg format */
+
+
+int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
+                    int w, int h, int lw,       /* width, height, line width */
+                    int fc, int bc, int lc,     /* color : font, background, line */
+                    int fs, int ts, char *fmt, ...)  /* font scale, display time(sec), msg format */
+{
+    va_list va;
+    char buf[ITEM_STR_MAX];
+    p_item_t *p = &ui_grp->p_item;
+
+    /* thread busy */
+    if (p->timeout)     return 0;
+
+    // popup message display time setting
+    p->timeout = ts;
+
+    if ((w < fb->w) && (w > 0)) {   p->r.w = w;     p->r.x = (fb->w - w) / 2;   }
+    else                        {   p->r.w = fb->w; p->r.x = 0;                 }
+
+    if ((h < fb->h) && (h > 0)) {   p->r.h = h;     p->r.y = (fb->h - h) / 2;   }
+    else                        {   p->r.h = fb->h; p->r.y = 0;                 }
+
+    p->r.lw = lw < 0 ? 0 : lw;
+
+    p->s.fc.uint = fc < 0 ? ui_grp->fc.uint : (unsigned int)fc;
+    p->r.lc.uint = lc < 0 ? ui_grp->lc.uint : (unsigned int)lc;
+    p->s.bc.uint = p->r.bc.uint = bc < 0 ? ui_grp->bc.uint : (unsigned int)bc;
+
+    /* 받아온 가변인자를 string 형태로 변환 하여 buf에 저장 */
+    memset (buf, 0x00, sizeof(buf));
+    va_start(va, fmt);  vsprintf(buf, fmt, va); va_end(va);
+
+    /* 새로운 string 복사 */
+    p->s.len = _my_strlen(buf);
+    memset (p->s.str, 0, sizeof(p->s.str));
+    strncpy(p->s.str, buf, p->s.len);
+
+    p->s.scale = fs < 0 ?
+        _ui_str_scale (p->r.w, p->r.h, p->r.lw, p->s.len) : fs;
+
+    p->s.x = -1;    p->s.y = -1;
+    _ui_str_pos_xy(&p->r, &p->s);
+
+    return  ui_update_popup(fb, ui_grp);
+}
+
+//------------------------------------------------------------------------------
 ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
 {
-   ui_grp_t	*ui_grp;
-   FILE *pfd;
-   char buf[256], is_cfg_file = 0;
+    ui_grp_t *ui_grp;
+    FILE *pfd;
+    char buf[256], is_cfg_file = 0;
 
-   if ((pfd = fopen(cfg_filename, "r")) == NULL)
-      return   NULL;
+    if ((pfd = fopen(cfg_filename, "r")) == NULL)
+        return   NULL;
 
-   if ((ui_grp = (ui_grp_t *)malloc(sizeof(ui_grp_t))) == NULL)
-      return   NULL;
+    if ((ui_grp = (ui_grp_t *)malloc(sizeof(ui_grp_t))) == NULL)
+        return   NULL;
 
-   memset (ui_grp, 0x00, sizeof(ui_grp_t));
-   memset (buf,    0x00, sizeof(buf));
+    memset (ui_grp, 0x00, sizeof(ui_grp_t));
+    memset (buf,    0x00, sizeof(buf));
 
-   while(fgets(buf, sizeof(buf), pfd) != NULL) {
-      if (!is_cfg_file) {
-         is_cfg_file = strncmp ("ODROID-UI-CONFIG", buf, strlen(buf)-1) == 0 ? 1 : 0;
-         memset (buf, 0x00, sizeof(buf));
-         continue;
-      }
-      switch(buf[0]) {
-         case  'C':  _ui_parser_cmd_C (buf, fb, ui_grp); break;
-         case  'B':  _ui_parser_cmd_B (buf, fb, ui_grp); break;
-         case  'I':  _ui_parser_cmd_I (buf, ui_grp);     break;
-         case  'T':  _ui_parser_cmd_T (buf, ui_grp);     break;
-         case  'R':  _ui_parser_cmd_R (buf, fb, ui_grp); break;
-         case  'S':  _ui_parser_cmd_S (buf, ui_grp);     break;
-         default :
-            fprintf(stdout, "ERROR: Unknown parser command! cmd = %c\n", buf[0]);
-         case  '#':  case  '\n':
-         break;
-      }
-      memset (buf, 0x00, sizeof(buf));
-   }
+    while(fgets(buf, sizeof(buf), pfd) != NULL) {
+        if (!is_cfg_file) {
+            is_cfg_file = strncmp ("ODROID-UI-CONFIG", buf, strlen(buf)-1) == 0 ? 1 : 0;
+            memset (buf, 0x00, sizeof(buf));
+            continue;
+        }
+        switch(buf[0]) {
+            case  'C':  _ui_parser_cmd_C (buf, fb, ui_grp); break;
+            case  'B':  _ui_parser_cmd_B (buf, fb, ui_grp); break;
+            case  'I':  _ui_parser_cmd_I (buf, ui_grp);     break;
+            case  'T':  _ui_parser_cmd_T (buf, ui_grp);     break;
+            case  'R':  _ui_parser_cmd_R (buf, fb, ui_grp); break;
+            case  'S':  _ui_parser_cmd_S (buf, ui_grp);     break;
+            default :
+                fprintf(stdout, "ERROR: Unknown parser command! cmd = %c\n", buf[0]);
+            case  '#':  case  '\n':
+                break;
+        }
+        memset (buf, 0x00, sizeof(buf));
+    }
 
-   if (!is_cfg_file) {
-      fprintf(stdout, "ERROR: UI Config File not found! (filename = %s)\n", cfg_filename);
-      free (ui_grp);
-      return NULL;
-   }
+    if (!is_cfg_file) {
+        fprintf(stdout, "ERROR: UI Config File not found! (filename = %s)\n", cfg_filename);
+        free (ui_grp);
+        return NULL;
+    }
 
-   /* all item update */
-   if (ui_grp->b_item_cnt)
-      ui_update (fb, ui_grp, -1);
+    /* all item update */
+    if (ui_grp->b_item_cnt)
+        ui_update (fb, ui_grp, -1);
 
-   if (pfd)
-      fclose (pfd);
+    // cfg file close
+    if (pfd)
+        fclose (pfd);
 
-   // file parser
-   return   ui_grp;
+    // file parser
+    return   ui_grp;
 }
 
 //------------------------------------------------------------------------------
