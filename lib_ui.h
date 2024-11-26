@@ -77,6 +77,8 @@ typedef struct i_item__t {
     char            grp_id;
     char            dev_id;
     char            is_info;
+    // 0 : wait, 1 : pass, -1 : fail
+    int             complete;
 }   i_item_t;
 
 //------------------------------------------------------------------
