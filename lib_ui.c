@@ -343,6 +343,15 @@ static void _ui_parser_cmd_I (char *buf, ui_grp_t *ui_grp)
    if ((ptr = strtok (NULL, ",")) != NULL)
       ui_grp->i_item[item_cnt].is_info = (atoi(ptr) == 1) ? 1 : 0;
 
+   /* 문자열이 없거나 앞부분의 공백이 있는 경우 제거 */
+   if ((ptr = strtok (NULL, ",")) != NULL) {
+      int slen = strlen(ptr);
+
+      while ((*ptr == 0x20) && slen--)
+         ptr++;
+
+      strncpy(ui_grp->i_item[item_cnt].name, ptr, slen);
+   }
    item_cnt++;
    ui_grp->i_item_cnt = item_cnt;
 }

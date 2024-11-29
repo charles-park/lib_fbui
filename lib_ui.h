@@ -77,8 +77,11 @@ typedef struct i_item__t {
     char            grp_id;
     char            dev_id;
     char            is_info;
-    // 0 : wait, 1 : pass, -1 : fail
+    char            name[ITEM_STR_MAX];
+    // 0 : wait, 1 : pass, -1 : fail(cmd run status)
     int             complete;
+    // 0 : fail, 1 : success (item check status)
+    int             status;
 }   i_item_t;
 
 //------------------------------------------------------------------
