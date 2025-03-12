@@ -712,13 +712,50 @@ int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
 }
 
 //------------------------------------------------------------------------------
+static int find_path (const char *fname, char *file_path)
+{
+    FILE *fp;
+    char cmd_line[256];
+
+    memset (cmd_line, 0, sizeof(cmd_line));
+    sprintf(cmd_line, "%s\n", "pwd");
+
+    if (NULL != (fp = popen(cmd_line, "r"))) {
+        memset (cmd_line, 0, sizeof(cmd_line));
+        fgets  (cmd_line, sizeof(cmd_line), fp);
+        pclose (fp);
+
+        strncpy (file_path, cmd_line, strlen(cmd_line)-1);
+
+        memset (cmd_line, 0, sizeof(cmd_line));
+        sprintf(cmd_line, "find -name %s\n", fname);
+        if (NULL != (fp = popen(cmd_line, "r"))) {
+            memset (cmd_line, 0, sizeof(cmd_line));
+            fgets  (cmd_line, sizeof(cmd_line), fp);
+            pclose (fp);
+            if (strlen(cmd_line)) {
+                strncpy (&file_path[strlen(file_path)], &cmd_line[1], strlen(cmd_line)-1);
+                file_path[strlen(file_path)-1] = 0;
+                return 1;
+            }
+            return 0;
+        }
+    }
+    pclose(fp);
+    return 0;
+}
+
+//------------------------------------------------------------------------------
 ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
 {
     ui_grp_t *ui_grp;
     FILE *pfd;
     char buf[256], is_cfg_file = 0;
 
-    if ((pfd = fopen(cfg_filename, "r")) == NULL)
+    memset (buf, 0x00, sizeof(buf));
+    if (!find_path (cfg_filename, buf)) return NULL;
+
+    if ((pfd = fopen(buf, "r")) == NULL)
         return   NULL;
 
     if ((ui_grp = (ui_grp_t *)malloc(sizeof(ui_grp_t))) == NULL)
@@ -747,21 +784,17 @@ ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
         }
         memset (buf, 0x00, sizeof(buf));
     }
-
     if (!is_cfg_file) {
         fprintf(stdout, "ERROR: UI Config File not found! (filename = %s)\n", cfg_filename);
         free (ui_grp);
         return NULL;
     }
-
     /* all item update */
     if (ui_grp->b_item_cnt)
         ui_update (fb, ui_grp, -1);
-
     // cfg file close
     if (pfd)
         fclose (pfd);
-
     // file parser
     return   ui_grp;
 }
