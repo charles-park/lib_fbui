@@ -483,6 +483,29 @@ void ui_set_sitem (fb_info_t *fb, ui_grp_t *ui_grp, int f_id, int fc, int bc, ch
             pitem->s.bc.uint = bc;
 
         /* 받아온 string을 buf에 저장 */
+        {
+            char buf[ITEM_STR_MAX];
+            memset (buf, 0x00, sizeof(buf));
+            sprintf(buf, "%s", (str != NULL) ? str : pitem->s_dfl);
+            /*
+                기존 문자열 보다 새로운 문자열이 더 작은 경우
+                기존 문자열을 배경색으로 덮어 씌운다.
+            */
+            if ((strlen(pitem->s.str) > strlen(buf)))
+                _ui_clr_str (fb, &pitem->r, &pitem->s);
+
+            /* 새로운 string 복사 */
+            strncpy(pitem->s.str, buf, strlen(buf));
+
+            switch (pitem->s_align) {
+                default :
+                case STR_ALIGN_C:
+                    pitem->s.x = -1, pitem->s.y = -1;
+                    break;
+            }
+        }
+#if 0
+        /* 받아온 string을 buf에 저장 */
         if (str != NULL)  {
             char buf[ITEM_STR_MAX];
 
@@ -504,6 +527,7 @@ void ui_set_sitem (fb_info_t *fb, ui_grp_t *ui_grp, int f_id, int fc, int bc, ch
                     break;
             }
         }
+#endif
         _ui_str_pos_xy(&pitem->r, &pitem->s);
         _ui_update_s (fb, &pitem->s, pitem->r.x, pitem->r.y);
     }
@@ -712,50 +736,13 @@ int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
 }
 
 //------------------------------------------------------------------------------
-static int find_path (const char *fname, char *file_path)
-{
-    FILE *fp;
-    char cmd_line[256];
-
-    memset (cmd_line, 0, sizeof(cmd_line));
-    sprintf(cmd_line, "%s\n", "pwd");
-
-    if (NULL != (fp = popen(cmd_line, "r"))) {
-        memset (cmd_line, 0, sizeof(cmd_line));
-        fgets  (cmd_line, sizeof(cmd_line), fp);
-        pclose (fp);
-
-        strncpy (file_path, cmd_line, strlen(cmd_line)-1);
-
-        memset (cmd_line, 0, sizeof(cmd_line));
-        sprintf(cmd_line, "find -name %s\n", fname);
-        if (NULL != (fp = popen(cmd_line, "r"))) {
-            memset (cmd_line, 0, sizeof(cmd_line));
-            fgets  (cmd_line, sizeof(cmd_line), fp);
-            pclose (fp);
-            if (strlen(cmd_line)) {
-                strncpy (&file_path[strlen(file_path)], &cmd_line[1], strlen(cmd_line)-1);
-                file_path[strlen(file_path)-1] = 0;
-                return 1;
-            }
-            return 0;
-        }
-    }
-    pclose(fp);
-    return 0;
-}
-
-//------------------------------------------------------------------------------
 ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
 {
     ui_grp_t *ui_grp;
     FILE *pfd;
     char buf[256], is_cfg_file = 0;
 
-    memset (buf, 0x00, sizeof(buf));
-    if (!find_path (cfg_filename, buf)) return NULL;
-
-    if ((pfd = fopen(buf, "r")) == NULL)
+    if ((pfd = fopen(cfg_filename, "r")) == NULL)
         return   NULL;
 
     if ((ui_grp = (ui_grp_t *)malloc(sizeof(ui_grp_t))) == NULL)
