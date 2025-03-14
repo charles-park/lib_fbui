@@ -408,6 +408,9 @@ int fb_get_rotate (fb_info_t *fb)
 }
 
 //-----------------------------------------------------------------------------
+static char *pVirtualFB = NULL;
+
+//-----------------------------------------------------------------------------
 fb_info_t *fb_init (const char *DEVICE_NAME)
 {
     struct fb_var_screeninfo fvsi;
@@ -422,9 +425,21 @@ fb_info_t *fb_init (const char *DEVICE_NAME)
     memset(fb, 0, sizeof(fb_info_t));
 
     if ((fb->fd = open(DEVICE_NAME, O_RDWR)) < 0) {
-        fprintf(stdout, "ERROR: open");
+        fprintf(stdout, "ERROR: Hardware %s open. Virtual FB 1920x1080 open.", DEVICE_NAME);
+
+        /* virtual fb size 1920x1080x32bpp */
+        fb->w       = 1920;
+        fb->h       = 1080;
+        fb->bpp     = 32;
+        fb->stride  = 1920 * (32 / 8);
+
+        if ((pVirtualFB = (char *)malloc(fb->w * fb->h * (fb->bpp / 8))) != NULL) {
+            fb->base = pVirtualFB;   fb->data = pVirtualFB;
+            return fb;
+        }
         return NULL;
     }
+
     if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fvsi) < 0) {
         fprintf(stdout, "ERROR: ioctl(FBIOGET_VSCREENINFO)");
         goto out;
