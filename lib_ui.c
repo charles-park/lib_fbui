@@ -26,6 +26,9 @@
 #include <sys/mman.h>
 #include <linux/fb.h>
 #include <getopt.h>
+#include <pthread.h>
+#include <termios.h>    // Contains POSIX terminal control definitions
+#include <unistd.h>     // write(), read(), close()
 
 //------------------------------------------------------------------------------
 #include "lib_fb.h"
@@ -650,22 +653,30 @@ void ui_close (ui_grp_t *ui_grp)
 }
 
 //------------------------------------------------------------------------------
-int ui_update_popup (fb_info_t *fb, ui_grp_t *ui_grp);
-int ui_update_popup (fb_info_t *fb, ui_grp_t *ui_grp)
-{
-    p_item_t *p = &ui_grp->p_item;
-    _ui_update_r (fb, &p->r);
-    _ui_update_s (fb, &p->s, p->r.x, p->r.y);
-    return 1;
-}
-
 //------------------------------------------------------------------------------
 int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
                     int w, int h, int lw,       /* box width, box height, box outline width */
                     int fc, int bc, int lc,     /* color : font, background, outline */
                     int fs, int ts, char *fmt, ...); /* font scale, display time(sec), msg format */
 
+//------------------------------------------------------------------------------
+void *ui_popup_func (void *arg)
+{
+   p_item_t *p = (p_item_t *)arg;
 
+   while (p->timeout) {
+      _ui_update_r ((fb_info_t *)p->vp_fb, &p->r);
+      _ui_update_s ((fb_info_t *)p->vp_fb, &p->s, p->r.x, p->r.y);
+      usleep (500 * 1000);
+      _ui_update_r ((fb_info_t *)p->vp_fb, &p->r);
+      usleep (500 * 1000);
+
+      if (p->timeout)   p->timeout--;
+   }
+   return arg;
+}
+
+//------------------------------------------------------------------------------
 int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
                     int w, int h, int lw,       /* width, height, line width */
                     int fc, int bc, int lc,     /* color : font, background, line */
@@ -674,6 +685,7 @@ int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
     va_list va;
     char buf[ITEM_STR_MAX];
     p_item_t *p = &ui_grp->p_item;
+    pthread_t ui_popup_thread;
 
     /* thread busy */
     if (p->timeout)     return 0;
@@ -708,9 +720,12 @@ int ui_set_popup (fb_info_t *fb, ui_grp_t *ui_grp,
     p->s.x = -1;    p->s.y = -1;
     _ui_str_pos_xy(&p->r, &p->s);
 
-    return  ui_update_popup(fb, ui_grp);
+    p->vp_fb = (void *)fb;
+
+    return pthread_create(&ui_popup_thread, NULL, ui_popup_func, p) ? 0 : 1;
 }
 
+//------------------------------------------------------------------------------
 //------------------------------------------------------------------------------
 ui_grp_t *ui_init (fb_info_t *fb, const char *cfg_filename)
 {

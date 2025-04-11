@@ -100,6 +100,7 @@ typedef struct t_item__t {
 typedef struct p_item__t {
     // time out
     int             timeout;
+    void            *vp_fb;
     rect_item_t     r;
     string_item_t   s;
 }   p_item_t;
