@@ -55,8 +55,10 @@ static void draw_ascii_bitmap (fb_info_t *fb,
                     int f_color, int b_color, int scale);
 static void _draw_text (fb_info_t *fb, int x, int y, char *p_str,
                         int f_color, int b_color, int scale);
-static void _put_pixel (fb_info_t *fb, int x, int y, int color);
-void         put_pixel (fb_info_t *fb, int x, int y, int color);
+static void _put_pixel      (fb_info_t *fb, int x, int y, int color);
+static void _put_pixel_1bpp (fb_info_t *fb, int x, int y, int color);   // ssd3306 OLED
+void         put_pixel      (fb_info_t *fb, int x, int y, int color);
+
 void         draw_text (fb_info_t *fb, int x, int y,
                      int f_color, int b_color, int scale, char *fmt, ...);
 void         draw_line (fb_info_t *fb, int x, int y, int w, int color);
@@ -81,6 +83,12 @@ const char D_MF[44] = { 0, 0, 0, 5, 0, 5, 0, 5, 0, 5, 0, 5, 0, 5, 0, 5, 0, 5, 1,
 static unsigned char *HANFONT1 = (unsigned char *)FONT_HANGUL1;
 static unsigned char *HANFONT2 = (unsigned char *)FONT_HANGUL2;
 static unsigned char *HANFONT3 = (unsigned char *)FONT_HANGUL3;
+
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+#define VFB_FILE_HEADER 0xFB00  // VFB Flag
+
+volatile int NumberOfVFB = 0;   // VFB cnt
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -153,6 +161,21 @@ static void _put_pixel (fb_info_t *fb, int x, int y, int color)
 }
 
 //-----------------------------------------------------------------------------
+static void _put_pixel_1bpp (fb_info_t *fb, int x, int y, int color)
+{
+    int offset = ((y / 8 ) * fb->w) + (x % fb->w);
+    int shift  =  (y % 8);
+    unsigned char data;
+
+    data = *(fb->data + offset);
+
+    if (color)  data |=  (0x01 << shift);
+    else        data &= ~(0x01 << shift);
+
+    *(fb->data + offset) = data;
+}
+
+//-----------------------------------------------------------------------------
 void put_pixel (fb_info_t *fb, int x, int y, int color)
 {
     if ((x < fb->w) && (y < fb->h)) {
@@ -177,7 +200,10 @@ void put_pixel (fb_info_t *fb, int x, int y, int color)
                 cal_y = fb->w -x -1;
                 break;
         }
-        _put_pixel (fb, cal_x, cal_y, color);
+        if (fb->bpp != 1)
+            _put_pixel (fb, cal_x, cal_y, color);
+        else
+            _put_pixel_1bpp (fb, cal_x, cal_y, color);
     } else {
         fprintf(stdout, "Out of range.(width = %d, x = %d, height = %d, y = %d, rotate = %d)\n",
             fb->w, x, fb->h, y, fb->rotate);
@@ -360,8 +386,11 @@ void fb_clear (fb_info_t *fb)
 void fb_close (fb_info_t *fb)
 {
     if (fb) {
-        if (fb->fd)
+        // Virtual FB의 경우 file description은 수동 생성된 것이므로 close문을 사용하면 안됨
+        if ((fb->fd & 0xFF00) != VFB_FILE_HEADER)
             close (fb->fd);
+        else
+            free (fb->base);
         free (fb);
     }
 }
@@ -408,9 +437,6 @@ int fb_get_rotate (fb_info_t *fb)
 }
 
 //-----------------------------------------------------------------------------
-static char *pVirtualFB = NULL;
-
-//-----------------------------------------------------------------------------
 fb_info_t *fb_init (const char *DEVICE_NAME)
 {
     struct fb_var_screeninfo fvsi;
@@ -424,35 +450,70 @@ fb_info_t *fb_init (const char *DEVICE_NAME)
     }
     memset(fb, 0, sizeof(fb_info_t));
 
-    if ((fb->fd = open(DEVICE_NAME, O_RDWR)) < 0) {
-        fprintf(stdout, "ERROR: Hardware %s open. Virtual FB 1920x1080 open.", DEVICE_NAME);
+    if (!strncmp ("/dev/", DEVICE_NAME, strlen("/dev/"))) {
+        // framebuffer
+        if ((fb->fd = open (DEVICE_NAME, O_RDWR)) < 0)  goto out;
 
-        /* virtual fb size 1920x1080x32bpp */
-        fb->w       = 1920;
-        fb->h       = 1080;
-        fb->bpp     = 32;
-        fb->stride  = 1920 * (32 / 8);
-
-        if ((pVirtualFB = (char *)malloc(fb->w * fb->h * (fb->bpp / 8))) != NULL) {
-            fb->base = pVirtualFB;   fb->data = pVirtualFB;
-            return fb;
+        if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fvsi) < 0) {
+            fprintf(stdout, "ERROR: ioctl(FBIOGET_VSCREENINFO)");
+            goto out;
         }
-        return NULL;
-    }
+        if (ioctl(fb->fd, FBIOGET_FSCREENINFO, &ffsi) < 0) {
+            fprintf(stdout, "ERROR: ioctl(FBIOGET_FSCREENINFO)");
+            goto out;
+        }
 
-    if (ioctl(fb->fd, FBIOGET_VSCREENINFO, &fvsi) < 0) {
-        fprintf(stdout, "ERROR: ioctl(FBIOGET_VSCREENINFO)");
-        goto out;
-    }
-    if (ioctl(fb->fd, FBIOGET_FSCREENINFO, &ffsi) < 0) {
-        fprintf(stdout, "ERROR: ioctl(FBIOGET_FSCREENINFO)");
-        goto out;
-    }
+        fb->w       = fvsi.xres;
+        fb->h       = fvsi.yres;
+        fb->bpp     = fvsi.bits_per_pixel;
+        fb->stride  = ffsi.line_length;
 
-    fb->w       = fvsi.xres;
-    fb->h       = fvsi.yres;
-    fb->bpp     = fvsi.bits_per_pixel;
-    fb->stride  = ffsi.line_length;
+        if (fvsi.red.length != 8 || fvsi.green.length != 8 || fvsi.blue.length != 8) {
+            fprintf(stdout, "%s(%d) : Framebuffer color length error!, r = %d, g = %d, b = %d\n",
+                __func__, __LINE__, fvsi.red.length, fvsi.green.length, fvsi.blue.length);
+            goto out;
+        }
+
+        fb->base = (char *)mmap((caddr_t) NULL, ffsi.smem_len,
+                            PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);
+
+        if (fb->base == (char *)-1) {
+            fprintf (stderr, "%s(%d) : mmap error! (w = %d, h = %d, bpp = %d)\n",
+                __func__, __LINE__, fb->fd, fb->w, fb->h);
+            goto out;
+        }
+        fb->data = fb->base + ((unsigned long) ffsi.smem_start % (unsigned long) getpagesize());
+    }
+    else if (!strncmp ("vfb", DEVICE_NAME, strlen("vfb"))) {
+        char vfb_info[64];
+        char *ptr;
+        // virtual frame buffer info : vfb,res_w,res_h,bpp
+        memset (vfb_info, 0, sizeof(vfb_info));
+        strncpy (vfb_info, DEVICE_NAME, strlen(DEVICE_NAME));
+
+        if ((ptr = strtok(vfb_info, ",")) == NULL)  goto out;
+
+        if ((ptr = strtok(NULL, ",")) != NULL)  fb->w = atoi (ptr);
+        if ((ptr = strtok(NULL, ",")) != NULL)  fb->h = atoi (ptr);
+        if ((ptr = strtok(NULL, ",")) != NULL)  fb->bpp = atoi (ptr);
+
+        if ((fb->w == 0) || (fb->h == 0) || (fb->bpp == 0)) goto out;
+
+        fb->stride  = (fb->w * fb->bpp) / 8;
+
+        if ((fb->base = (char *)malloc ((fb->w * fb->h * fb->bpp / 8))) == NULL) {
+            fprintf (stderr, "%s(%d) : VFB mem allocation error! (w = %d, h = %d, bpp = %d)\n",
+                __func__, __LINE__, fb->fd, fb->w, fb->h);
+            goto out;
+        }
+        fb->data = fb->base;
+
+        fb->fd = (VFB_FILE_HEADER | NumberOfVFB);
+        NumberOfVFB++;
+    }
+    else {
+        goto out;    // unknown device
+    }
 
 #if defined (__USE_TFT_LCD__)
     fb_set_rotate (fb, eFB_ROTATE_90);
@@ -460,28 +521,16 @@ fb_info_t *fb_init (const char *DEVICE_NAME)
     fb_set_rotate (fb, eFB_ROTATE_0);
 #endif
 
-    fprintf(stdout, "[ %s : %s ] fb_x_res : %d, fb_y_res : %d\n",
-            __FILE__, __func__, fb->w, fb->h);
+    fprintf(stdout, "[ %s : %s ] fd : %d, fb_x_res : %d, fb_y_res : %d\n",
+            __FILE__, __func__, fb->fd, fb->w, fb->h);
 
-    if (fvsi.red.length != 8 || fvsi.green.length != 8 || fvsi.blue.length != 8) {
-        fprintf(stdout, "ERROR: mmap");
-        goto out;
-    }
-
-    fb->base = (char *)mmap((caddr_t) NULL, ffsi.smem_len,
-                        PROT_READ | PROT_WRITE, MAP_SHARED, fb->fd, 0);
-
-    if (fb->base == (char *)-1) {
-        fprintf(stdout, "ERROR: mmap");
-        goto out;
-    }
-
-    fb->data = fb->base + ((unsigned long) ffsi.smem_start % (unsigned long) getpagesize());
     /* disable fb cursor */
     fb_cursor(0);
     fb_clear (fb);
     return  fb;
 out:
+    fprintf (stderr, "%s(%d) : Device open error! info = %s\n",
+        __func__, __LINE__, DEVICE_NAME);
     fb_close(fb);
     return  NULL;
 }
