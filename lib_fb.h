@@ -77,6 +77,11 @@ enum eFONTS_HANGUL {
 extern void         put_pixel   (fb_info_t *fb, int x, int y, int color);
 extern void         draw_text   (fb_info_t *fb, int x, int y,
                                     int f_color, int b_color, int scale, char *fmt, ...);
+//-----------------------------------------------------------------------------
+// img_buf size = w * h * bpp / 8
+//-----------------------------------------------------------------------------
+extern void         make_draw_text (char *img_buf, int w, int h, int bpp,
+                                    int f_color, int b_color, int scale, char *fmt, ...);
 extern void         draw_line   (fb_info_t *fb, int x, int y, int w, int color);
 extern void         draw_rect   (fb_info_t *fb, int x, int y, int w, int h, int lw, int color);
 extern void         draw_fill_rect (fb_info_t *fb, int x, int y, int w, int h, int color);

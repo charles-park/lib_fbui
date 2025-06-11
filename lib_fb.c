@@ -61,6 +61,8 @@ void         put_pixel      (fb_info_t *fb, int x, int y, int color);
 
 void         draw_text (fb_info_t *fb, int x, int y,
                      int f_color, int b_color, int scale, char *fmt, ...);
+void         make_draw_text (char *img_buf, int w, int h, int bpp,
+                     int f_color, int b_color, int scale, char *fmt, ...);
 void         draw_line (fb_info_t *fb, int x, int y, int w, int color);
 void         draw_rect (fb_info_t *fb, int x, int y, int w, int h, int lw, int color);
 void         draw_fill_rect (fb_info_t *fb, int x, int y, int w, int h, int color);
@@ -305,6 +307,25 @@ void draw_text (fb_info_t *fb, int x, int y,
     va_end(va);
 
     _draw_text(fb, x, y, buf, f_color, b_color, scale);
+}
+
+//-----------------------------------------------------------------------------
+// img_buf_size = w * h * bpp / 8
+//-----------------------------------------------------------------------------
+void make_draw_text (char *img_buf, int w, int h, int bpp,
+                    int f_color, int b_color, int scale, char *fmt, ...)
+{
+    fb_info_t img_fb;
+
+    img_fb.w      = w;
+    img_fb.h      = h;
+    img_fb.bpp    = bpp;
+    img_fb.stride = (w * bpp) / 8;
+
+    memset (img_buf, 0, (w * h * bpp / 8));
+    img_fb.base = img_fb.data = (char *)img_buf;
+
+    draw_text (&img_fb, 0, 0, f_color, b_color, scale, fmt);
 }
 
 //-----------------------------------------------------------------------------
