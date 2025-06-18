@@ -42,7 +42,6 @@ static  int queue_put (event_queue_t *q, ts_event_t *d);
 static  int queue_get (event_queue_t *q, ts_event_t *d);
         void *ts_thread_func(void *data);
 
-//        int ts_get_event    (ts_t *p_ts, ts_event_t *get_ts_event);
         int ts_get_event    (fb_info_t *fb, ts_t *p_ts, ts_event_t *get_ts_event);
         ts_t *ts_init       (const char *DEVICE_NAME);;
         void ts_deinit      (ts_t *p_ts);
@@ -85,6 +84,8 @@ static int queue_get (event_queue_t *q, ts_event_t *d)
 }
 
 //------------------------------------------------------------------------------
+volatile int pThreadStatus = 0;
+
 void *ts_thread_func (void *data)
 {
     ts_t *p_ts = (ts_t *)data;
@@ -93,52 +94,71 @@ void *ts_thread_func (void *data)
 
     struct input_event event;
 
+    //
+    struct timeval  timeout;
+    fd_set          readFds;
+
     printf("The touchscreen thread install successfully.\n");
 
-    while(1){
-        usleep(1000);
-        if(read(p_ts->fd, &event, sizeof(struct input_event))) {
-            switch (event.type) {
-                case	EV_SYN:
-                    switch (ts_status) {
-                        case eTS_STATUS_PRESS:
-                            ts_status       = eTS_STATUS_MOVE;
-                            ts_event.status = eTS_STATUS_PRESS;
-                            ts_event.x      = x;
-                            ts_event.y      = y;
-                            queue_put (&p_ts->event_q, &ts_event);
-                            break;
-                        case eTS_STATUS_RELEASE:
-                            ts_status       = eTS_STATUS_UNKNOWN;
-                            ts_event.status = eTS_STATUS_RELEASE;
-                            ts_event.x      = x;
-                            ts_event.y      = y;
-                            queue_put (&p_ts->event_q, &ts_event);
-                            break;
-                    }
-                    break;
-                case	EV_KEY:
-                    if (event.code == BTN_TOUCH)
-                        ts_status = event.value ? eTS_STATUS_PRESS : eTS_STATUS_RELEASE;
-                    break;
-                case	EV_ABS:
-                    if (ts_status == eTS_STATUS_PRESS) {
-                        if (event.code == ABS_X)    x = event.value;
-                        if (event.code == ABS_Y)    y = event.value;
-                    }
-                    break;
-                default	:
-                    printf("event.type = %d, event.code = %d, event.value = %d\n",
-                        event.type, event.code, event.value);
-                    break;
+    pThreadStatus = 1;
+
+    while(pThreadStatus) {
+        timeout.tv_sec  = 0;
+        timeout.tv_usec = 500 * 1000; // ms (timeout)
+
+        FD_ZERO (&readFds);
+        FD_SET  (p_ts->fd, &readFds);
+        select  (p_ts->fd +1, &readFds, NULL, NULL, &timeout);
+
+        if (FD_ISSET (p_ts->fd, &readFds)) {
+            if(read(p_ts->fd, &event, sizeof(struct input_event))) {
+                switch (event.type) {
+                    case	EV_SYN:
+                        switch (ts_status) {
+                            case eTS_STATUS_PRESS:
+                                ts_status       = eTS_STATUS_MOVE;
+                                ts_event.status = eTS_STATUS_PRESS;
+                                ts_event.x      = x;
+                                ts_event.y      = y;
+                                queue_put (&p_ts->event_q, &ts_event);
+                                break;
+                            case eTS_STATUS_RELEASE:
+                                ts_status       = eTS_STATUS_UNKNOWN;
+                                ts_event.status = eTS_STATUS_RELEASE;
+                                ts_event.x      = x;
+                                ts_event.y      = y;
+                                queue_put (&p_ts->event_q, &ts_event);
+                                break;
+                        }
+                        break;
+                    case	EV_KEY:
+                        if (event.code == BTN_TOUCH)
+                            ts_status = event.value ? eTS_STATUS_PRESS : eTS_STATUS_RELEASE;
+                        break;
+                    case	EV_ABS:
+                        if (ts_status == eTS_STATUS_PRESS) {
+                            if (event.code == ABS_X)    x = event.value;
+                            if (event.code == ABS_Y)    y = event.value;
+                        }
+                        break;
+                    default	:
+                        printf("event.type = %d, event.code = %d, event.value = %d\n",
+                            event.type, event.code, event.value);
+                        break;
+                }
             }
         }
     }
+    pThreadStatus = 0;
+    printf("The touchscreen thread removed successfully.\n");
+    return data;
 }
 
 //-----------------------------------------------------------------------------
 int ts_get_event (fb_info_t *fb, ts_t *p_ts, ts_event_t *get_ts_event)
 {
+    if (p_ts == NULL)   return 0;
+
     if (queue_get (&p_ts->event_q, get_ts_event)) {
         int cal_x, cal_y, cal_x_w, cal_y_w;
 
@@ -229,8 +249,13 @@ exit:
 //-----------------------------------------------------------------------------
 void ts_deinit (ts_t *p_ts)
 {
+    // pThread close
+    pThreadStatus = 0;  sleep (1);
+
     if (p_ts->fd)   close (p_ts->fd);
     if (p_ts)       free (p_ts);
+
+    p_ts = NULL;
 }
 
 //-----------------------------------------------------------------------------
